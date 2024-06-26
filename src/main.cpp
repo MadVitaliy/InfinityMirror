@@ -24,7 +24,7 @@ void Ocean();
 // Glabal variables
 CRGB leds[NUM_LEDS];
 Button btn1(BUTTON_1), btn2(BUTTON_2);
-void (*current_effect)() = &Fire;
+void (*current_effect)() = &PoliceLights;
 void setup()
 {
   // Serial.begin(9600);
@@ -41,8 +41,8 @@ void setup()
 void ShiftEffect()
 {
   static void (*effects[3])() = {
-      &Fire,
       &PoliceLights,
+      &Fire,
       &Ocean};
   static uint8_t i = 0;
   i = (i + 1) % sizeof(effects);
@@ -64,7 +64,10 @@ void ReadBottons()
 
 void loop()
 {
-  ReadBottons();
+  EVERY_N_MILLISECONDS(50)
+  {
+    ReadBottons();
+  }
 
   (*current_effect)();
   FastLED.show();
@@ -97,15 +100,15 @@ void ButtonFeedback()
 
     auto new_time = millis();
 
-    if (new_time - old_time < 40)
-      return;
-    leds[i] = color;
-    leds[NUM_LEDS - 1 - i] = color;
-    FastLED.show();
-    ++i;
-    old_time = new_time;
-    
-    ReadBottons();
+    if (new_time - old_time >= 10)
+    {
+      leds[i] = color;
+      leds[NUM_LEDS - 1 - i] = color;
+      FastLED.show();
+      ++i;
+      old_time = new_time;
+      ReadBottons();
+    }
   }
 }
 
@@ -157,17 +160,24 @@ void PoliceLights()
   static auto old_time = millis();
   static bool rename_me = true;
   auto new_time = millis();
-  if (new_time - old_time < 1000)
+  constexpr unsigned long update_time {30};
+  if (new_time - old_time < update_time)
     return;
 
-  CRGB c1 = rename_me ? CRGB::Red : CRGB::Blue;
-  CRGB c2 = !rename_me ? CRGB::Red : CRGB::Blue;
 
-  for (uint8_t i = 0; i < NUM_LEDS / 2; i++)
+  for (uint8_t i = NUM_LEDS / 2 - 1; i > 0 ; --i)
   {
-    leds[i] = c1;
-    leds[NUM_LEDS - 1 - i] = c2;
+    leds[i] = leds[i - 1];
+    leds[NUM_LEDS - 1 - i] = leds[NUM_LEDS - i];
   }
+  constexpr double period = update_time*(NUM_LEDS/2)/1000.;
+  constexpr uint16_t bpm = 60/period;
+  constexpr uint8_t lowwer_value{10};
+  constexpr uint8_t upper_value{255};
+  const uint8_t beat = beatsin8(bpm, lowwer_value, upper_value);
+  leds[0] = CRGB(upper_value - beat, 0,0) ;
+  leds[NUM_LEDS - 1 ] = CRGB(0,0,beat);
+
   old_time = new_time;
   rename_me = !rename_me;
 }
