@@ -165,10 +165,9 @@ void PoliceLights()
     return;
 
 
-  for (uint8_t i = NUM_LEDS / 2 - 1; i > 0 ; --i)
+  for (uint8_t i = NUM_LEDS -1; i > 0 ; --i)
   {
     leds[i] = leds[i - 1];
-    leds[NUM_LEDS - 1 - i] = leds[NUM_LEDS - i];
   }
   constexpr double period = update_time*(NUM_LEDS/2)/1000.;
   constexpr uint16_t bpm = 60/period;
@@ -176,7 +175,7 @@ void PoliceLights()
   constexpr uint8_t upper_value{255};
   const uint8_t beat = beatsin8(bpm, lowwer_value, upper_value);
   leds[0] = CRGB(upper_value - beat, 0,0) ;
-  leds[NUM_LEDS - 1 ] = CRGB(0,0,beat);
+  leds[NUM_LEDS/2 ] = CRGB(0,0,beat);
 
   old_time = new_time;
   rename_me = !rename_me;
