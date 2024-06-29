@@ -17,45 +17,54 @@ void ButtonFeedback();
 // Efects functions
 #define COOLING 100
 #define SPARKING 220
+
 void Fire();
 void PoliceLights();
+void Rainbow();
+void PureWhite();
 void Ocean();
 
 // Glabal variables
-CRGB leds[NUM_LEDS];
-Button btn1(BUTTON_1), btn2(BUTTON_2);
-void (*current_effect)() = &PoliceLights;
+CRGB G_LEDS[NUM_LEDS];
+Button G_BTN1(BUTTON_1), G_BTN2(BUTTON_2);
+
+void (*G_EFFECTS[5])() = {
+    &PoliceLights,
+    &Fire,
+    &Rainbow,
+    &Ocean,
+    *PureWhite};
+uint8_t G_CURRENT_EFFECT_IND = 0;
+void (*GP_CURRENT_EFFECT)();
+bool G_STATE_CHANCHED = true;
+
 void setup()
 {
   // Serial.begin(9600);
   // attachInterrupt(digitalPinToInterrupt(BUTTON_1), ButtonFeedback, RISING);
   // attachInterrupt(digitalPinToInterrupt(BUTTON_2), ButtonFeedback, RISING);
-  btn1.begin();
-  btn2.begin();
-  FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
+  G_BTN1.begin();
+  G_BTN2.begin();
+  FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
   FastLED.setMaxPowerInMilliWatts(7500);
 
+  GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
   delay(1000);
 }
 
 void ShiftEffect()
 {
-  static void (*effects[3])() = {
-      &PoliceLights,
-      &Fire,
-      &Ocean};
-  static uint8_t i = 0;
-  i = (i + 1) % sizeof(effects);
-  current_effect = effects[i];
+  G_CURRENT_EFFECT_IND = (G_CURRENT_EFFECT_IND + 1) % sizeof(G_EFFECTS);
+  GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
 }
 
 void ReadBottons()
 {
-  btn1.read();
-  btn2.read();
-  if (btn1.wasPressed())
+  G_BTN1.read();
+  G_BTN2.read();
+  if (G_BTN1.wasPressed())
     ButtonFeedback();
-  if (btn2.wasPressed())
+  if (G_BTN2.wasPressed())
   {
     ButtonFeedback();
     ShiftEffect();
@@ -69,14 +78,14 @@ void loop()
     ReadBottons();
   }
 
-  (*current_effect)();
+  (*GP_CURRENT_EFFECT)();
   FastLED.show();
 }
 
 void Clean()
 {
   for (uint8_t i = 0; i < NUM_LEDS; ++i)
-    leds[i] = CRGB(0, 0, 0);
+    G_LEDS[i] = CRGB(0, 0, 0);
   FastLED.show();
 }
 
@@ -102,8 +111,8 @@ void ButtonFeedback()
 
     if (new_time - old_time >= 10)
     {
-      leds[i] = color;
-      leds[NUM_LEDS - 1 - i] = color;
+      G_LEDS[i] = color;
+      G_LEDS[NUM_LEDS - 1 - i] = color;
       FastLED.show();
       ++i;
       old_time = new_time;
@@ -150,9 +159,9 @@ void Fire()
 
   // Step 4.  Map from heat cells to LED colors
   for (uint8_t j = 0; j < leds_in_column; j++)
-    leds[j] = HeatColor(heat_1[j]);
+    G_LEDS[j] = HeatColor(heat_1[j]);
   for (uint8_t j = 0; j < leds_in_column; j++)
-    leds[NUM_LEDS - 1 - j] = HeatColor(heat_2[j]);
+    G_LEDS[NUM_LEDS - 1 - j] = HeatColor(heat_2[j]);
 }
 
 void PoliceLights()
@@ -160,25 +169,42 @@ void PoliceLights()
   static auto old_time = millis();
   static bool rename_me = true;
   auto new_time = millis();
-  constexpr unsigned long update_time {30};
+  constexpr unsigned long update_time{30};
   if (new_time - old_time < update_time)
     return;
 
-
-  for (uint8_t i = NUM_LEDS -1; i > 0 ; --i)
+  for (uint8_t i = NUM_LEDS - 1; i > 0; --i)
   {
-    leds[i] = leds[i - 1];
+    G_LEDS[i] = G_LEDS[i - 1];
   }
-  constexpr double period = update_time*(NUM_LEDS/2)/1000.;
-  constexpr uint16_t bpm = 60/period;
+  constexpr double period = update_time * (NUM_LEDS / 2) / 1000.;
+  constexpr uint16_t bpm = 60 / period;
   constexpr uint8_t lowwer_value{10};
   constexpr uint8_t upper_value{255};
   const uint8_t beat = beatsin8(bpm, lowwer_value, upper_value);
-  leds[0] = CRGB(upper_value - beat, 0,0) ;
-  leds[NUM_LEDS/2 ] = CRGB(0,0,beat);
+  G_LEDS[0] = CRGB(upper_value - beat, 0, 0);
+  G_LEDS[NUM_LEDS / 2] = CRGB(0, 0, beat);
 
   old_time = new_time;
   rename_me = !rename_me;
 }
 
-void Ocean() {}
+void Rainbow()
+{
+  constexpr uint8_t thisdelay = 200, deltahue = 10;
+  const uint8_t thishue = millis() * (255 - thisdelay) / 255; // To change the rate, add a beat or something to the result. 'thisdelay' must be a fixed value.
+
+  fill_rainbow(G_LEDS, NUM_LEDS, thishue, deltahue); // Use FastLED's fill_rainbow routine.
+}
+
+void PureWhite()
+{
+  if (!G_STATE_CHANCHED)
+    return;
+  const CRGB white(255, 255, 255);
+  fill_solid(G_LEDS, NUM_LEDS, white);
+}
+
+void Ocean()
+{
+}
