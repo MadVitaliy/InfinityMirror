@@ -8,15 +8,14 @@
 
 #define LED_PIN 5
 #define NUM_LEDS 126
+#define LONG_PRESS_TIME 700 // ms
 
 // Instantiations
 void Clean();
 // Note: blocking function
 void ButtonFeedback();
 
-// Efects functions
-#define COOLING 100
-#define SPARKING 220
+
 
 void Fire();
 void PoliceLights();
@@ -25,24 +24,30 @@ void PureWhite();
 void Ocean();
 
 // Glabal variables
-CRGB G_LEDS[NUM_LEDS];
-Button G_BTN1(BUTTON_1), G_BTN2(BUTTON_2);
 
+enum class LastButtonStatus
+{
+  RELEASED,
+  LONG_PRESS,
+};
+
+Button G_BTN1(BUTTON_1, 25, true, false), G_BTN2(BUTTON_2, 25, true, false);
+LastButtonStatus G_BTN1_S{LastButtonStatus::RELEASED}, G_BTN2_S{LastButtonStatus::RELEASED};
+CRGB G_LEDS[NUM_LEDS];
 void (*G_EFFECTS[5])() = {
     &PoliceLights,
     &Fire,
     &Rainbow,
     &Ocean,
     *PureWhite};
+
 uint8_t G_CURRENT_EFFECT_IND = 0;
 void (*GP_CURRENT_EFFECT)();
 bool G_STATE_CHANCHED = true;
+uint8_t G_BRIGHTNESS = 255;
 
 void setup()
 {
-  // Serial.begin(9600);
-  // attachInterrupt(digitalPinToInterrupt(BUTTON_1), ButtonFeedback, RISING);
-  // attachInterrupt(digitalPinToInterrupt(BUTTON_2), ButtonFeedback, RISING);
   G_BTN1.begin();
   G_BTN2.begin();
   FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
@@ -58,27 +63,63 @@ void ShiftEffect()
   GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
 }
 
-void ReadBottons()
+void ReadButtons()
 {
+  static auto old_time = millis();
+  auto new_time = millis();
+  constexpr unsigned long update_time{100};
+  if (new_time - old_time < update_time)
+    return;
+
   G_BTN1.read();
   G_BTN2.read();
-  if (G_BTN1.wasPressed())
-    ButtonFeedback();
-  if (G_BTN2.wasPressed())
+
+  if (G_BTN1.pressedFor(uint32_t(LONG_PRESS_TIME)))
   {
-    ButtonFeedback();
-    ShiftEffect();
+    G_BRIGHTNESS = qsub8(G_BRIGHTNESS, 1);
+    FastLED.setBrightness(G_BRIGHTNESS);
+    G_BTN1_S = LastButtonStatus::LONG_PRESS;
+  }
+
+  if (G_BTN2.pressedFor(uint32_t(LONG_PRESS_TIME)))
+  {
+    G_BRIGHTNESS = qadd8(G_BRIGHTNESS, 1);
+    FastLED.setBrightness(G_BRIGHTNESS);
+    G_BTN2_S = LastButtonStatus::LONG_PRESS;
+  }
+
+  if (G_BTN1.wasReleased())
+  {
+    if (G_BTN1_S != LastButtonStatus::LONG_PRESS)
+    {
+      ShiftEffect();
+      ButtonFeedback();
+    }
+    else
+    {
+      G_BTN1_S = LastButtonStatus::RELEASED;
+    }
+  }
+
+  if (G_BTN2.wasReleased())
+  {
+    if (G_BTN2_S != LastButtonStatus::LONG_PRESS)
+    {
+      ButtonFeedback();
+    }
+    else
+    {
+      G_BTN2_S = LastButtonStatus::RELEASED;
+    }
   }
 }
 
 void loop()
 {
-  EVERY_N_MILLISECONDS(50)
-  {
-    ReadBottons();
-  }
+  ReadButtons();
 
   (*GP_CURRENT_EFFECT)();
+
   FastLED.show();
 }
 
@@ -116,10 +157,14 @@ void ButtonFeedback()
       FastLED.show();
       ++i;
       old_time = new_time;
-      ReadBottons();
+      ReadButtons();
     }
   }
 }
+
+// Efects functions
+#define COOLING 100
+#define SPARKING 220
 
 void Fire()
 {
@@ -131,8 +176,9 @@ void Fire()
   static auto old_time = millis();
   auto new_time = millis();
 
-  if (new_time - old_time < 100)
+  if (new_time - old_time < 20)
     return;
+  old_time = new_time;
 
   uint8_t *heat_1 = heat;
   uint8_t *heat_2 = heat + leds_in_column;
@@ -167,7 +213,6 @@ void Fire()
 void PoliceLights()
 {
   static auto old_time = millis();
-  static bool rename_me = true;
   auto new_time = millis();
   constexpr unsigned long update_time{30};
   if (new_time - old_time < update_time)
@@ -186,12 +231,11 @@ void PoliceLights()
   G_LEDS[NUM_LEDS / 2] = CRGB(0, 0, beat);
 
   old_time = new_time;
-  rename_me = !rename_me;
 }
 
 void Rainbow()
 {
-  constexpr uint8_t thisdelay = 200, deltahue = 10;
+  constexpr uint8_t thisdelay = 220, deltahue = 10;
   const uint8_t thishue = millis() * (255 - thisdelay) / 255; // To change the rate, add a beat or something to the result. 'thisdelay' must be a fixed value.
 
   fill_rainbow(G_LEDS, NUM_LEDS, thishue, deltahue); // Use FastLED's fill_rainbow routine.
