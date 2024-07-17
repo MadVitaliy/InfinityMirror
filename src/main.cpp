@@ -209,11 +209,13 @@ void ButtonFeedback()
 }
 
 // Efects functions
-#define COOLING 100
-#define SPARKING 220
+#define COOLING 120
+#define SPARKING 80
 
 void Fire()
 {
+
+  //
   // Array of temperature readings at each simulation cell
   static uint8_t leds_in_column = NUM_LEDS / 2;
   // Serial.println(leds_in_column);
@@ -222,12 +224,19 @@ void Fire()
   static auto old_time = millis();
   auto new_time = millis();
 
-  if (new_time - old_time < 20)
+  if (new_time - old_time < 30)
     return;
   old_time = new_time;
 
   uint8_t *heat_1 = heat;
   uint8_t *heat_2 = heat + leds_in_column;
+
+  constexpr uint8_t num_bottom_vertical_leds = 12;
+  for (uint8_t i = 0; i < num_bottom_vertical_leds; ++i)
+  {
+    heat_1[i] = random8(160, 220);
+    heat_2[i] = random8(160, 220);
+  }
 
   // Step 1.  Cool down every cell a little
   for (uint8_t i = 0; i < NUM_LEDS; i++)
@@ -243,10 +252,10 @@ void Fire()
   // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
   if (random8() < SPARKING)
   {
-    uint8_t y = random8(7);
-    heat_1[y] = qadd8(heat_1[y], random8(160, 255));
+    uint8_t y = random8(7) + num_bottom_vertical_leds;
+    heat_1[y] = qadd8(heat_1[y], random8(120, 220));
     y = random8(7);
-    heat_2[y] = qadd8(heat_2[y], random8(160, 255));
+    heat_2[y] = qadd8(heat_2[y], random8(120, 220));
   }
 
   // Step 4.  Map from heat cells to LED colors
