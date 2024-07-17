@@ -13,7 +13,7 @@
 #define NUMBER_OF_EFFECTS 5
 
 // Instantiations
-void ShiftEffect();
+void NextEffect();
 void ReadButtons();
 
 // Note: blocking function
@@ -89,9 +89,15 @@ void loop()
   FastLED.show();
 }
 
-void ShiftEffect()
+void NextEffect()
 {
   G_CURRENT_EFFECT_IND = (G_CURRENT_EFFECT_IND + 1) % NUMBER_OF_EFFECTS;
+  GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
+}
+
+void PrevEffect()
+{
+  G_CURRENT_EFFECT_IND = (G_CURRENT_EFFECT_IND + NUMBER_OF_EFFECTS - 1) % NUMBER_OF_EFFECTS;
   GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
 }
 
@@ -125,6 +131,7 @@ void ReadButtons()
   {
     G_BRIGHTNESS = qadd8(G_BRIGHTNESS, 1);
     FastLED.setBrightness(G_BRIGHTNESS);
+    G_BTN2_S = LastButtonStatus::LONG_PRESS;
   }
 
   if (G_BTN1.wasReleased())
@@ -132,7 +139,7 @@ void ReadButtons()
     G_SAVE_REQUIRED = true;
     if (G_BTN1_S != LastButtonStatus::LONG_PRESS)
     {
-      ShiftEffect();
+      PrevEffect();
       ButtonFeedback();
     }
     else
@@ -146,6 +153,7 @@ void ReadButtons()
     G_SAVE_REQUIRED = true;
     if (G_BTN2_S != LastButtonStatus::LONG_PRESS)
     {
+      NextEffect();
       ButtonFeedback();
     }
     else
@@ -158,7 +166,6 @@ void ReadButtons()
   {
     G_SAVE_REQUIRED = false;
     SaveParametersToEEPROM();
-    ButtonFeedback();
   }
 }
 
