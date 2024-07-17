@@ -73,9 +73,10 @@ void setup()
   G_BTN2.begin();
   FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
   FastLED.setMaxPowerInMilliWatts(7500);
-
-  GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
+  
   InitParametersFromEEPROM();
+  FastLED.setBrightness(G_BRIGHTNESS);
+  
   delay(1000);
 }
 
@@ -145,7 +146,7 @@ void ReadButtons()
     }
   }
 
-  if (G_BTN1.releasedFor(10000) && G_BTN2.releasedFor(10000) && G_SAVE_REQUIRED)
+  if (G_BTN1.releasedFor(5000) && G_BTN2.releasedFor(5000) && G_SAVE_REQUIRED)
   {
     G_SAVE_REQUIRED = false;
     SaveParametersToEEPROM();
