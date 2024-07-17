@@ -73,10 +73,10 @@ void setup()
   G_BTN2.begin();
   FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
   FastLED.setMaxPowerInMilliWatts(7500);
-  
+
   InitParametersFromEEPROM();
   FastLED.setBrightness(G_BRIGHTNESS);
-  
+
   delay(1000);
 }
 
@@ -95,6 +95,14 @@ void ShiftEffect()
   GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
 }
 
+uint8_t SuturationSubtruct(uint8_t i, uint8_t j, uint8_t min_value = 0)
+{
+  int t = i - j;
+  if (t < min_value)
+    t = min_value;
+  return t;
+}
+
 void ReadButtons()
 {
   static auto old_time = millis();
@@ -108,7 +116,7 @@ void ReadButtons()
 
   if (G_BTN1.pressedFor(uint32_t(LONG_PRESS_TIME)))
   {
-    G_BRIGHTNESS = qsub8(G_BRIGHTNESS, 1);
+    G_BRIGHTNESS = SuturationSubtruct(G_BRIGHTNESS, 1, 10);
     FastLED.setBrightness(G_BRIGHTNESS);
     G_BTN1_S = LastButtonStatus::LONG_PRESS;
   }
