@@ -1,5 +1,5 @@
 #include <Arduino.h>
-
+#include <EEPROM.h>
 #include <FastLED.h>
 #include "JC_Button.h"
 
@@ -10,13 +10,16 @@
 #define NUM_LEDS 126
 #define LONG_PRESS_TIME 700 // ms
 
+#define NUMBER_OF_EFFECTS 5
+
 // Instantiations
-void Clean();
+void ShiftEffect();
+void ReadButtons();
+
 // Note: blocking function
 void ButtonFeedback();
 
-
-
+void Clean();
 void Fire();
 void PoliceLights();
 void Rainbow();
@@ -34,7 +37,8 @@ enum class LastButtonStatus
 Button G_BTN1(BUTTON_1, 25, true, false), G_BTN2(BUTTON_2, 25, true, false);
 LastButtonStatus G_BTN1_S{LastButtonStatus::RELEASED}, G_BTN2_S{LastButtonStatus::RELEASED};
 CRGB G_LEDS[NUM_LEDS];
-void (*G_EFFECTS[5])() = {
+
+void (*G_EFFECTS[NUMBER_OF_EFFECTS])() = {
     &PoliceLights,
     &Fire,
     &Rainbow,
@@ -45,21 +49,48 @@ uint8_t G_CURRENT_EFFECT_IND = 0;
 void (*GP_CURRENT_EFFECT)();
 bool G_STATE_CHANCHED = true;
 uint8_t G_BRIGHTNESS = 255;
+bool G_SAVE_REQUIRED = false;
+
+void InitParametersFromEEPROM()
+{
+  G_CURRENT_EFFECT_IND = EEPROM.read(128);
+  G_BRIGHTNESS = EEPROM.read(129);
+
+  G_CURRENT_EFFECT_IND = (G_CURRENT_EFFECT_IND) % NUMBER_OF_EFFECTS;
+  GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
+}
+
+void SaveParametersToEEPROM()
+{
+  EEPROM.write(128, G_CURRENT_EFFECT_IND);
+  EEPROM.write(129, G_BRIGHTNESS);
+}
 
 void setup()
 {
+  delay(1000);
   G_BTN1.begin();
   G_BTN2.begin();
   FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
   FastLED.setMaxPowerInMilliWatts(7500);
 
   GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
+  InitParametersFromEEPROM();
   delay(1000);
+}
+
+void loop()
+{
+  ReadButtons();
+
+  (*GP_CURRENT_EFFECT)();
+
+  FastLED.show();
 }
 
 void ShiftEffect()
 {
-  G_CURRENT_EFFECT_IND = (G_CURRENT_EFFECT_IND + 1) % sizeof(G_EFFECTS);
+  G_CURRENT_EFFECT_IND = (G_CURRENT_EFFECT_IND + 1) % NUMBER_OF_EFFECTS;
   GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
 }
 
@@ -85,11 +116,11 @@ void ReadButtons()
   {
     G_BRIGHTNESS = qadd8(G_BRIGHTNESS, 1);
     FastLED.setBrightness(G_BRIGHTNESS);
-    G_BTN2_S = LastButtonStatus::LONG_PRESS;
   }
 
   if (G_BTN1.wasReleased())
   {
+    G_SAVE_REQUIRED = true;
     if (G_BTN1_S != LastButtonStatus::LONG_PRESS)
     {
       ShiftEffect();
@@ -103,6 +134,7 @@ void ReadButtons()
 
   if (G_BTN2.wasReleased())
   {
+    G_SAVE_REQUIRED = true;
     if (G_BTN2_S != LastButtonStatus::LONG_PRESS)
     {
       ButtonFeedback();
@@ -112,15 +144,13 @@ void ReadButtons()
       G_BTN2_S = LastButtonStatus::RELEASED;
     }
   }
-}
 
-void loop()
-{
-  ReadButtons();
-
-  (*GP_CURRENT_EFFECT)();
-
-  FastLED.show();
+  if (G_BTN1.releasedFor(10000) && G_BTN2.releasedFor(10000) && G_SAVE_REQUIRED)
+  {
+    G_SAVE_REQUIRED = false;
+    SaveParametersToEEPROM();
+    ButtonFeedback();
+  }
 }
 
 void Clean()
