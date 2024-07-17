@@ -10,7 +10,7 @@
 #define NUM_LEDS 126
 #define LONG_PRESS_TIME 700 // ms
 
-#define NUMBER_OF_EFFECTS 5
+#define NUMBER_OF_EFFECTS 6
 
 // Instantiations
 void NextEffect();
@@ -23,7 +23,8 @@ void Clean();
 void Fire();
 void PoliceLights();
 void Rainbow();
-void PureWhite();
+void ColdWhite();
+void WarmWhite();
 void Ocean();
 
 // Glabal variables
@@ -43,7 +44,8 @@ void (*G_EFFECTS[NUMBER_OF_EFFECTS])() = {
     &Fire,
     &Rainbow,
     &Ocean,
-    *PureWhite};
+    &ColdWhite,
+    &WarmWhite};
 
 uint8_t G_CURRENT_EFFECT_IND = 0;
 void (*GP_CURRENT_EFFECT)();
@@ -73,7 +75,7 @@ void setup()
   G_BTN2.begin();
   FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
   FastLED.setMaxPowerInMilliWatts(7500);
-
+  Clean();
   InitParametersFromEEPROM();
   FastLED.setBrightness(G_BRIGHTNESS);
 
@@ -139,6 +141,7 @@ void ReadButtons()
     G_SAVE_REQUIRED = true;
     if (G_BTN1_S != LastButtonStatus::LONG_PRESS)
     {
+      G_STATE_CHANCHED = true;
       PrevEffect();
       ButtonFeedback();
     }
@@ -153,6 +156,7 @@ void ReadButtons()
     G_SAVE_REQUIRED = true;
     if (G_BTN2_S != LastButtonStatus::LONG_PRESS)
     {
+      G_STATE_CHANCHED = true;
       NextEffect();
       ButtonFeedback();
     }
@@ -171,8 +175,7 @@ void ReadButtons()
 
 void Clean()
 {
-  for (uint8_t i = 0; i < NUM_LEDS; ++i)
-    G_LEDS[i] = CRGB(0, 0, 0);
+  fill_solid(G_LEDS, NUM_LEDS, CRGB::Black);
   FastLED.show();
 }
 
@@ -214,8 +217,6 @@ void ButtonFeedback()
 
 void Fire()
 {
-
-  //
   // Array of temperature readings at each simulation cell
   static uint8_t leds_in_column = NUM_LEDS / 2;
   // Serial.println(leds_in_column);
@@ -296,12 +297,21 @@ void Rainbow()
   fill_rainbow(G_LEDS, NUM_LEDS, thishue, deltahue); // Use FastLED's fill_rainbow routine.
 }
 
-void PureWhite()
+void ColdWhite()
 {
   if (!G_STATE_CHANCHED)
     return;
-  const CRGB white(255, 255, 255);
-  fill_solid(G_LEDS, NUM_LEDS, white);
+  G_STATE_CHANCHED = false;
+  fill_solid(G_LEDS, NUM_LEDS, CRGB::WhiteSmoke);
+}
+
+void WarmWhite()
+{
+  if (!G_STATE_CHANCHED)
+    return;
+  const CRGB warm_white(252, 113, 25);
+  fill_solid(G_LEDS, NUM_LEDS, warm_white);
+  G_STATE_CHANCHED = false;
 }
 
 void Ocean()
