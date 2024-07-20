@@ -29,6 +29,7 @@ void Ocean();
 void pacifica_one_layer(CRGBPalette16 &p, uint16_t cistart, uint16_t wavescale, uint8_t bri, uint16_t ioff);
 void pacifica_add_whitecaps();
 void pacifica_deepen_colors();
+void EasterGame();
 
 // Glabal variables
 
@@ -80,6 +81,7 @@ void setup()
   FastLED.setMaxPowerInMilliWatts(7500);
   Clean();
   InitParametersFromEEPROM();
+  GP_CURRENT_EFFECT = &EasterGame;
   FastLED.setBrightness(G_BRIGHTNESS);
 
   delay(1000);
@@ -127,12 +129,18 @@ void ReadButtons()
 
   if (G_BTN1.pressedFor(uint32_t(LONG_PRESS_TIME)))
   {
-    G_BRIGHTNESS = SuturationSubtruct(G_BRIGHTNESS, 1, 10);
+    G_BRIGHTNESS = SuturationSubtruct(G_BRIGHTNESS, 1, 20);
     FastLED.setBrightness(G_BRIGHTNESS);
     G_BTN1_S = LastButtonStatus::LONG_PRESS;
   }
 
-  if (G_BTN2.pressedFor(uint32_t(LONG_PRESS_TIME)))
+  if (G_BTN2.pressedFor(uint32_t(6000)))
+  {
+    GP_CURRENT_EFFECT = &EasterGame;
+
+    // FastLED.setMaxPowerInMilliWatts(10000);
+  }
+  else if (G_BTN2.pressedFor(uint32_t(LONG_PRESS_TIME)))
   {
     G_BRIGHTNESS = qadd8(G_BRIGHTNESS, 1);
     FastLED.setBrightness(G_BRIGHTNESS);
@@ -190,19 +198,18 @@ void ButtonFeedback()
 
   static uint8_t shift = 0;
   ++shift;
-  const CRGB color(80 * (shift + 0) % 3, 30 * (shift + 3) % 7, 30 * (shift + 5) % 8);
-  uint8_t i = 0;
+  const CRGB color(random8(50, 240), random8(50, 240), random8(50, 240));
 
   Clean();
   auto old_time = millis();
-  while (i < NUM_LEDS / 2)
+  for (size_t i = 0; i < NUM_LEDS / 2;)
   {
     if (current_interruption != global_counter)
       break;
 
     auto new_time = millis();
 
-    if (new_time - old_time >= 10)
+    if (new_time - old_time >= 8)
     {
       G_LEDS[i] = color;
       G_LEDS[NUM_LEDS - 1 - i] = color;
@@ -316,6 +323,7 @@ void WarmWhite()
   G_STATE_CHANCHED = false;
 }
 
+// big complecated effect I have just copied from examples
 CRGBPalette16 pacifica_palette_1 =
     {0x000507, 0x000409, 0x00030B, 0x00030D, 0x000210, 0x000212, 0x000114, 0x000117,
      0x000019, 0x00001C, 0x000026, 0x000031, 0x00003B, 0x000046, 0x14554B, 0x28AA50};
@@ -415,4 +423,148 @@ void pacifica_deepen_colors()
     G_LEDS[i].green = scale8(G_LEDS[i].green, 200);
     G_LEDS[i] |= CRGB(2, 5, 7);
   }
+}
+
+#define CARRAGE_TOTAL_LENGTH 10
+
+struct Pair
+{
+  uint8_t beg;
+  uint8_t end;
+};
+
+uint8_t CarrageLength(const Pair i_carrage)
+{
+  return i_carrage.end - i_carrage.beg;
+}
+
+Pair DefinePlatformPosition(const uint8_t i_carrage_size)
+{
+  Pair platform{(NUM_LEDS - i_carrage_size) / 2, i_carrage_size};
+  platform.end += platform.beg;
+  return platform;
+}
+
+bool IsCarregeOnPlatform(const Pair carrage, const Pair platform)
+{
+  return carrage.end > platform.beg && carrage.beg < platform.end;
+}
+
+Pair CarregeOnPlatform(const Pair carrage, const Pair platform)
+{
+  if (!IsCarregeOnPlatform(carrage, platform))
+    return {0, 0};
+  return {max(carrage.beg, platform.beg), min(carrage.end, platform.end)};
+}
+
+void BlinkLostPixels(Pair firsts, Pair seconds)
+{
+  const auto add_gap = CarrageLength(firsts);
+  constexpr uint16_t del = 50;
+  for (size_t k = 0; k < 10; k++)
+  {
+    for (uint8_t i = firsts.beg; i < firsts.end; ++i)
+      G_LEDS[i] = CRGB::DarkRed;
+    for (uint8_t i = seconds.beg; i < seconds.end; ++i)
+      G_LEDS[i] = CRGB::DarkRed;
+    FastLED.show();
+    delay(del);
+
+    for (uint8_t i = firsts.beg; i < firsts.end; ++i)
+      G_LEDS[i] = CRGB::Black;
+    for (uint8_t i = seconds.beg; i < seconds.end; ++i)
+      G_LEDS[i] = CRGB::Black;
+    FastLED.show();
+    delay(del);
+  }
+}
+
+void ShowScore(const float i_score)
+{
+  const uint16_t score = static_cast<uint16_t>(i_score);
+  uint16_t del = 100;
+  Clean();
+  delay(1000);
+  for (size_t i = 0; i < score; i++)
+  {
+    if (score - i == 10)
+      del = 200;
+    else if (score - i == 3)
+      del = 300;
+    G_LEDS[i] = CRGB::OrangeRed;
+    FastLED.show();
+    delay(del);
+  }
+  delay(3000);
+  Clean();
+}
+
+void EasterGame()
+{
+  bool game_over = false;
+  Pair moving_carrage{0, 10};
+  Pair platform = DefinePlatformPosition(CarrageLength(moving_carrage));
+  int8_t direction = 1;
+
+  constexpr float carrage_speed = 6; // leds per second
+  float speed_scale = 1;
+  float speed_increase = 0.5;
+  uint16_t frame_time = 1000 / carrage_speed;
+  // float score = 0; TODO: uncomment
+  float score = 30;
+
+  static auto old_time = millis();
+  while (!game_over)
+  {
+    auto new_time = millis();
+    if (new_time - old_time > frame_time)
+    {
+      old_time = new_time;
+      fill_solid(G_LEDS, NUM_LEDS, CRGB(30, 30, 30));
+
+      for (uint8_t k = platform.beg; k < platform.end; ++k)
+        G_LEDS[k] = CRGB::OrangeRed;
+
+      for (uint8_t i = moving_carrage.beg; i < moving_carrage.end; ++i)
+        G_LEDS[i] = CRGB::DarkBlue;
+
+      moving_carrage.beg += direction;
+      moving_carrage.end += direction;
+
+      if (moving_carrage.beg == 0)
+        direction = 1;
+      if (moving_carrage.end == NUM_LEDS)
+        direction = -1;
+
+      FastLED.show();
+    }
+
+    G_BTN1.read();
+    if (G_BTN1.wasPressed())
+    {
+      if (IsCarregeOnPlatform(moving_carrage, platform))
+      {
+        Pair lost_pixels_1 = {min(moving_carrage.beg, platform.beg), max(moving_carrage.beg, platform.beg) + 1};
+        Pair lost_pixels_2 = {min(moving_carrage.end, platform.end) - 1, max(moving_carrage.end, platform.end)};
+
+        moving_carrage = CarregeOnPlatform(moving_carrage, platform);
+        auto new_carrage_length = CarrageLength(moving_carrage);
+        platform = DefinePlatformPosition(new_carrage_length);
+        score += speed_scale * new_carrage_length;
+
+        BlinkLostPixels(lost_pixels_1, lost_pixels_2);
+
+        speed_scale += speed_increase;
+        frame_time = 1000 / (carrage_speed * speed_scale);
+      }
+      else
+      {
+        BlinkLostPixels(moving_carrage, platform);
+        game_over = true;
+      }
+    }
+  }
+  ShowScore(score);
+  delay(2000);
+  GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
 }
