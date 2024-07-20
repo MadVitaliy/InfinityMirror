@@ -2,6 +2,7 @@
 #include <EEPROM.h>
 #include <FastLED.h>
 #include "JC_Button.h"
+#include <LowPower.h>
 
 #define BUTTON_1 2
 #define BUTTON_2 3
@@ -38,6 +39,7 @@ enum class LastButtonStatus
 {
   RELEASED,
   LONG_PRESS,
+  SLEEP_PRESS,
 };
 
 // Glabal variables
@@ -68,7 +70,7 @@ void setup()
   FastLED.setMaxPowerInMilliWatts(7500);
   Clean();
   InitParametersFromEEPROM();
-  //GP_CURRENT_EFFECT = &EasterGame;
+  // GP_CURRENT_EFFECT = &EasterGame;
   FastLED.setBrightness(G_BRIGHTNESS);
 
   delay(1000);
@@ -116,6 +118,10 @@ uint8_t SuturationSubtruct(uint8_t i, uint8_t j, uint8_t min_value = 0)
   return t;
 }
 
+void WakeUp()
+{
+}
+
 void ReadButtons()
 {
   static auto old_time = millis();
@@ -127,7 +133,27 @@ void ReadButtons()
   G_BTN1.read();
   G_BTN2.read();
 
-  if (G_BTN1.pressedFor(uint32_t(LONG_PRESS_TIME)))
+  if (G_BTN1.pressedFor(uint32_t(3000)))
+  {
+    G_BTN1_S = LastButtonStatus::SLEEP_PRESS;
+    Clean();
+
+    delay(500);
+    static auto pin1 = digitalPinToInterrupt(BUTTON_1);
+    attachInterrupt(pin1, WakeUp, RISING);
+    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+    detachInterrupt(pin1);
+    delay(500);
+
+    // on the power down moment pressedFor(3000)
+    G_BTN1.read();
+    G_BTN2.read();
+    FastLED.setBrightness(G_BRIGHTNESS);
+    G_STATE_CHANCHED = true;
+    // PowerOnEf();
+    return;
+  }
+  else if (G_BTN1.pressedFor(uint32_t(LONG_PRESS_TIME)))
   {
     G_BRIGHTNESS = SuturationSubtruct(G_BRIGHTNESS, 1, 20);
     FastLED.setBrightness(G_BRIGHTNESS);
@@ -336,6 +362,15 @@ CRGBPalette16 pacifica_palette_3 =
 
 void Ocean()
 {
+  // workaround; minimal brightness seems not enough for this effect
+  // change once when switch to it
+  if (G_STATE_CHANCHED)
+  {
+    G_BRIGHTNESS = SuturationSubtruct(G_BRIGHTNESS, 1, 50);
+    FastLED.setBrightness(G_BRIGHTNESS);
+    G_STATE_CHANCHED = false;
+  }
+
   static auto old_time = millis();
   auto new_time = millis();
   constexpr unsigned long update_time{30};
@@ -602,7 +637,7 @@ void EasterGame()
           BlinkLostPixels(lost_pixels_1, lost_pixels_2);
         else
           BlinkTrain(train);
-        
+
         train = TrainOnPlatform(train, platform);
         auto new_train_length = TrainLength(train);
         platform = DefinePlatformPosition(new_train_length);
