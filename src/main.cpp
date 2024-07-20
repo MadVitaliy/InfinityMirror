@@ -433,7 +433,7 @@ struct Pair
   uint8_t end;
 };
 
-uint8_t CarrageLength(const Pair i_carrage)
+uint8_t TrainLength(const Pair i_carrage)
 {
   return i_carrage.end - i_carrage.beg;
 }
@@ -445,21 +445,20 @@ Pair DefinePlatformPosition(const uint8_t i_carrage_size)
   return platform;
 }
 
-bool IsCarregeOnPlatform(const Pair carrage, const Pair platform)
+bool IsTrainOnPlatform(const Pair carrage, const Pair platform)
 {
   return carrage.end > platform.beg && carrage.beg < platform.end;
 }
 
-Pair CarregeOnPlatform(const Pair carrage, const Pair platform)
+Pair TrainOnPlatform(const Pair carrage, const Pair platform)
 {
-  if (!IsCarregeOnPlatform(carrage, platform))
+  if (!IsTrainOnPlatform(carrage, platform))
     return {0, 0};
   return {max(carrage.beg, platform.beg), min(carrage.end, platform.end)};
 }
 
 void BlinkLostPixels(Pair firsts, Pair seconds)
 {
-  const auto add_gap = CarrageLength(firsts);
   constexpr uint16_t del = 50;
   for (size_t k = 0; k < 10; k++)
   {
@@ -488,8 +487,10 @@ void ShowScore(const float i_score)
   for (size_t i = 0; i < score; i++)
   {
     if (score - i == 10)
+      del = 150;
+    else if (score - i == 5)
       del = 200;
-    else if (score - i == 3)
+    else if (score - i == 2)
       del = 300;
     G_LEDS[i] = CRGB::OrangeRed;
     FastLED.show();
@@ -502,16 +503,15 @@ void ShowScore(const float i_score)
 void EasterGame()
 {
   bool game_over = false;
-  Pair moving_carrage{0, 10};
-  Pair platform = DefinePlatformPosition(CarrageLength(moving_carrage));
+  Pair train{0, 10};
+  Pair platform = DefinePlatformPosition(TrainLength(train));
   int8_t direction = 1;
 
   constexpr float carrage_speed = 6; // leds per second
   float speed_scale = 1;
-  float speed_increase = 0.5;
+  float speed_increase = 0.6;
   uint16_t frame_time = 1000 / carrage_speed;
-  // float score = 0; TODO: uncomment
-  float score = 30;
+  float score = 0; 
 
   static auto old_time = millis();
   while (!game_over)
@@ -520,21 +520,23 @@ void EasterGame()
     if (new_time - old_time > frame_time)
     {
       old_time = new_time;
-      fill_solid(G_LEDS, NUM_LEDS, CRGB(30, 30, 30));
 
+      if (train.beg == 0)
+        direction = 1;
+      if (train.end == NUM_LEDS)
+        direction = -1;
+
+      train.beg += direction;
+      train.end += direction;
+
+      // draw background
+      fill_solid(G_LEDS, NUM_LEDS, CRGB(30, 30, 30));
+      // draw platform
       for (uint8_t k = platform.beg; k < platform.end; ++k)
         G_LEDS[k] = CRGB::OrangeRed;
-
-      for (uint8_t i = moving_carrage.beg; i < moving_carrage.end; ++i)
+      // draw train
+      for (uint8_t i = train.beg; i < train.end; ++i)
         G_LEDS[i] = CRGB::DarkBlue;
-
-      moving_carrage.beg += direction;
-      moving_carrage.end += direction;
-
-      if (moving_carrage.beg == 0)
-        direction = 1;
-      if (moving_carrage.end == NUM_LEDS)
-        direction = -1;
 
       FastLED.show();
     }
@@ -542,15 +544,15 @@ void EasterGame()
     G_BTN1.read();
     if (G_BTN1.wasPressed())
     {
-      if (IsCarregeOnPlatform(moving_carrage, platform))
+      if (IsTrainOnPlatform(train, platform))
       {
-        Pair lost_pixels_1 = {min(moving_carrage.beg, platform.beg), max(moving_carrage.beg, platform.beg) + 1};
-        Pair lost_pixels_2 = {min(moving_carrage.end, platform.end) - 1, max(moving_carrage.end, platform.end)};
+        Pair lost_pixels_1 = {min(train.beg, platform.beg), max(train.beg, platform.beg)};
+        Pair lost_pixels_2 = {min(train.end, platform.end), max(train.end, platform.end)};
 
-        moving_carrage = CarregeOnPlatform(moving_carrage, platform);
-        auto new_carrage_length = CarrageLength(moving_carrage);
+        train = TrainOnPlatform(train, platform);
+        auto new_carrage_length = TrainLength(train);
         platform = DefinePlatformPosition(new_carrage_length);
-        score += speed_scale * new_carrage_length;
+        score += (speed_scale * new_carrage_length)/1.3;
 
         BlinkLostPixels(lost_pixels_1, lost_pixels_2);
 
@@ -559,7 +561,7 @@ void EasterGame()
       }
       else
       {
-        BlinkLostPixels(moving_carrage, platform);
+        BlinkLostPixels(train, platform);
         game_over = true;
       }
     }
