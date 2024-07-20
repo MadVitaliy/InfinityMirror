@@ -31,7 +31,8 @@ void pacifica_add_whitecaps();
 void pacifica_deepen_colors();
 void EasterGame();
 
-// Glabal variables
+void InitParametersFromEEPROM();
+void SaveParametersToEEPROM();
 
 enum class LastButtonStatus
 {
@@ -39,6 +40,7 @@ enum class LastButtonStatus
   LONG_PRESS,
 };
 
+// Glabal variables
 Button G_BTN1(BUTTON_1, 25, true, false), G_BTN2(BUTTON_2, 25, true, false);
 LastButtonStatus G_BTN1_S{LastButtonStatus::RELEASED}, G_BTN2_S{LastButtonStatus::RELEASED};
 CRGB G_LEDS[NUM_LEDS];
@@ -57,6 +59,21 @@ bool G_STATE_CHANCHED = true;
 uint8_t G_BRIGHTNESS = 255;
 bool G_SAVE_REQUIRED = false;
 
+void setup()
+{
+  delay(1000);
+  G_BTN1.begin();
+  G_BTN2.begin();
+  FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
+  FastLED.setMaxPowerInMilliWatts(7500);
+  Clean();
+  InitParametersFromEEPROM();
+  //GP_CURRENT_EFFECT = &EasterGame;
+  FastLED.setBrightness(G_BRIGHTNESS);
+
+  delay(1000);
+}
+
 void InitParametersFromEEPROM()
 {
   G_CURRENT_EFFECT_IND = EEPROM.read(128);
@@ -72,27 +89,10 @@ void SaveParametersToEEPROM()
   EEPROM.write(129, G_BRIGHTNESS);
 }
 
-void setup()
-{
-  delay(1000);
-  G_BTN1.begin();
-  G_BTN2.begin();
-  FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
-  FastLED.setMaxPowerInMilliWatts(7500);
-  Clean();
-  InitParametersFromEEPROM();
-  GP_CURRENT_EFFECT = &EasterGame;
-  FastLED.setBrightness(G_BRIGHTNESS);
-
-  delay(1000);
-}
-
 void loop()
 {
   ReadButtons();
-
   (*GP_CURRENT_EFFECT)();
-
   FastLED.show();
 }
 
