@@ -425,8 +425,6 @@ void pacifica_deepen_colors()
   }
 }
 
-#define train_TOTAL_LENGTH 10
-
 struct Pair
 {
   uint8_t beg;
@@ -480,19 +478,36 @@ void BlinkLostPixels(Pair firsts, Pair seconds)
 
 void ShowScore(const float i_score)
 {
+  const CRGB colors[2] = {CRGB::DarkBlue, CRGB::OrangeRed};
   const uint16_t score = static_cast<uint16_t>(i_score);
-  uint16_t del = 100;
+  const uint8_t loops = score / NUM_LEDS;
+  const uint8_t last_score = score % NUM_LEDS;
+  CRGB current_collor = colors[0];
+
+  uint16_t del = 50;
   Clean();
   delay(1000);
-  for (size_t i = 0; i < score; i++)
+
+  for (uint8_t l = 0; l < loops; l++)
   {
-    if (score - i == 10)
-      del = 150;
-    else if (score - i == 5)
+    for (uint16_t i = 0; i < NUM_LEDS; i++)
+    {
+      G_LEDS[i] = current_collor;
+      FastLED.show();
+      delay(del);
+    }
+    current_collor = colors[(l + 1u) % 2];
+  }
+
+  for (uint16_t i = 0; i < last_score; i++)
+  {
+    if (last_score - i == 10)
+      del = 75;
+    else if (last_score - i == 5)
+      del = 125;
+    else if (last_score - i == 2)
       del = 200;
-    else if (score - i == 2)
-      del = 300;
-    G_LEDS[i] = CRGB::OrangeRed;
+    G_LEDS[i] = current_collor;
     FastLED.show();
     delay(del);
   }
@@ -525,9 +540,9 @@ void EasterGame()
       if (train.beg == 0)
       {
         direction = 1; // move forward when begin has been readhed
-        if (!was_user_input) 
+        if (!was_user_input)
         {
-          // if the user has misses platform twice 
+          // if the user has misses platform twice
           // and he train has returned to begin, the train looses a carrage
           train.end -= 1;
           auto new_train_length = TrainLength(train);
@@ -541,7 +556,7 @@ void EasterGame()
         was_user_input = false;
       }
       if (train.end == NUM_LEDS)
-        direction = -1;  // move backward when end has been readhed
+        direction = -1; // move backward when end has been readhed
 
       train.beg += direction;
       train.end += direction;
