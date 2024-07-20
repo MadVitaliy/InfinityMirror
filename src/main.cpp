@@ -476,6 +476,23 @@ void BlinkLostPixels(Pair firsts, Pair seconds)
   }
 }
 
+void BlinkTrain(Pair firsts)
+{
+  constexpr uint16_t del = 50;
+  for (size_t k = 0; k < 10; k++)
+  {
+    for (uint8_t i = firsts.beg; i < firsts.end; ++i)
+      G_LEDS[i] = CRGB::DarkGreen;
+    FastLED.show();
+    delay(del);
+
+    for (uint8_t i = firsts.beg; i < firsts.end; ++i)
+      G_LEDS[i] = CRGB::Black;
+    FastLED.show();
+    delay(del);
+  }
+}
+
 void ShowScore(const float i_score)
 {
   const CRGB colors[2] = {CRGB::DarkBlue, CRGB::OrangeRed};
@@ -581,13 +598,15 @@ void EasterGame()
       {
         Pair lost_pixels_1 = {min(train.beg, platform.beg), max(train.beg, platform.beg)};
         Pair lost_pixels_2 = {min(train.end, platform.end), max(train.end, platform.end)};
-
+        if (TrainLength(lost_pixels_1) || TrainLength(lost_pixels_2))
+          BlinkLostPixels(lost_pixels_1, lost_pixels_2);
+        else
+          BlinkTrain(train);
+        
         train = TrainOnPlatform(train, platform);
         auto new_train_length = TrainLength(train);
         platform = DefinePlatformPosition(new_train_length);
         score += (speed_scale * new_train_length) / 1.3;
-
-        BlinkLostPixels(lost_pixels_1, lost_pixels_2);
 
         speed_scale += speed_increase;
         frame_time = 1000 / (train_speed * speed_scale);
