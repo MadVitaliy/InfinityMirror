@@ -425,7 +425,7 @@ void pacifica_deepen_colors()
   }
 }
 
-#define CARRAGE_TOTAL_LENGTH 10
+#define train_TOTAL_LENGTH 10
 
 struct Pair
 {
@@ -433,28 +433,28 @@ struct Pair
   uint8_t end;
 };
 
-uint8_t TrainLength(const Pair i_carrage)
+uint8_t TrainLength(const Pair i_train)
 {
-  return i_carrage.end - i_carrage.beg;
+  return i_train.end - i_train.beg;
 }
 
-Pair DefinePlatformPosition(const uint8_t i_carrage_size)
+Pair DefinePlatformPosition(const uint8_t i_train_size)
 {
-  Pair platform{(NUM_LEDS - i_carrage_size) / 2, i_carrage_size};
+  Pair platform{(NUM_LEDS - i_train_size) / 2, i_train_size};
   platform.end += platform.beg;
   return platform;
 }
 
-bool IsTrainOnPlatform(const Pair carrage, const Pair platform)
+bool IsTrainOnPlatform(const Pair train, const Pair platform)
 {
-  return carrage.end > platform.beg && carrage.beg < platform.end;
+  return train.end > platform.beg && train.beg < platform.end;
 }
 
-Pair TrainOnPlatform(const Pair carrage, const Pair platform)
+Pair TrainOnPlatform(const Pair train, const Pair platform)
 {
-  if (!IsTrainOnPlatform(carrage, platform))
+  if (!IsTrainOnPlatform(train, platform))
     return {0, 0};
-  return {max(carrage.beg, platform.beg), min(carrage.end, platform.end)};
+  return {max(train.beg, platform.beg), min(train.end, platform.end)};
 }
 
 void BlinkLostPixels(Pair firsts, Pair seconds)
@@ -502,16 +502,16 @@ void ShowScore(const float i_score)
 
 void EasterGame()
 {
+  bool was_user_input = true;
   bool game_over = false;
   Pair train{0, 10};
   Pair platform = DefinePlatformPosition(TrainLength(train));
   int8_t direction = 1;
-
-  constexpr float carrage_speed = 6; // leds per second
+  constexpr float train_speed = 6; // leds per second
   float speed_scale = 1;
   float speed_increase = 0.6;
-  uint16_t frame_time = 1000 / carrage_speed;
-  float score = 0; 
+  uint16_t frame_time = 1000 / train_speed;
+  float score = 0;
 
   static auto old_time = millis();
   while (!game_over)
@@ -521,10 +521,27 @@ void EasterGame()
     {
       old_time = new_time;
 
+      // bounce from the ends of the led strip
       if (train.beg == 0)
-        direction = 1;
+      {
+        direction = 1; // move forward when begin has been readhed
+        if (!was_user_input) 
+        {
+          // if the user has misses platform twice 
+          // and he train has returned to begin, the train looses a carrage
+          train.end -= 1;
+          auto new_train_length = TrainLength(train);
+          platform = DefinePlatformPosition(new_train_length);
+          if (new_train_length == 0)
+          {
+            game_over = true;
+            break;
+          }
+        }
+        was_user_input = false;
+      }
       if (train.end == NUM_LEDS)
-        direction = -1;
+        direction = -1;  // move backward when end has been readhed
 
       train.beg += direction;
       train.end += direction;
@@ -544,20 +561,21 @@ void EasterGame()
     G_BTN1.read();
     if (G_BTN1.wasPressed())
     {
+      was_user_input = true;
       if (IsTrainOnPlatform(train, platform))
       {
         Pair lost_pixels_1 = {min(train.beg, platform.beg), max(train.beg, platform.beg)};
         Pair lost_pixels_2 = {min(train.end, platform.end), max(train.end, platform.end)};
 
         train = TrainOnPlatform(train, platform);
-        auto new_carrage_length = TrainLength(train);
-        platform = DefinePlatformPosition(new_carrage_length);
-        score += (speed_scale * new_carrage_length)/1.3;
+        auto new_train_length = TrainLength(train);
+        platform = DefinePlatformPosition(new_train_length);
+        score += (speed_scale * new_train_length) / 1.3;
 
         BlinkLostPixels(lost_pixels_1, lost_pixels_2);
 
         speed_scale += speed_increase;
-        frame_time = 1000 / (carrage_speed * speed_scale);
+        frame_time = 1000 / (train_speed * speed_scale);
       }
       else
       {
