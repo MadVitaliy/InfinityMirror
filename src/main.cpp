@@ -31,6 +31,10 @@ void pacifica_one_layer(CRGBPalette16 &p, uint16_t cistart, uint16_t wavescale, 
 void pacifica_add_whitecaps();
 void pacifica_deepen_colors();
 void EasterGame();
+void WakeUp();
+void WakeUpEffect();
+void SleepDownEffect();
+void Sleep();
 
 void InitParametersFromEEPROM();
 void SaveParametersToEEPROM();
@@ -72,7 +76,6 @@ void setup()
   InitParametersFromEEPROM();
   // GP_CURRENT_EFFECT = &EasterGame;
   FastLED.setBrightness(G_BRIGHTNESS);
-
   delay(1000);
 }
 
@@ -118,9 +121,7 @@ uint8_t SuturationSubtruct(uint8_t i, uint8_t j, uint8_t min_value = 0)
   return t;
 }
 
-void WakeUp()
-{
-}
+
 
 void ReadButtons()
 {
@@ -133,24 +134,10 @@ void ReadButtons()
   G_BTN1.read();
   G_BTN2.read();
 
-  if (G_BTN1.pressedFor(uint32_t(3000)))
+  if (G_BTN1.pressedFor(uint32_t(3500)))
   {
     G_BTN1_S = LastButtonStatus::SLEEP_PRESS;
-    Clean();
-
-    delay(500);
-    static auto pin1 = digitalPinToInterrupt(BUTTON_1);
-    attachInterrupt(pin1, WakeUp, RISING);
-    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-    detachInterrupt(pin1);
-    delay(500);
-
-    // on the power down moment pressedFor(3000)
-    G_BTN1.read();
-    G_BTN2.read();
-    FastLED.setBrightness(G_BRIGHTNESS);
-    G_STATE_CHANCHED = true;
-    // PowerOnEf();
+    Sleep();
     return;
   }
   else if (G_BTN1.pressedFor(uint32_t(LONG_PRESS_TIME)))
@@ -203,7 +190,7 @@ void ReadButtons()
     }
   }
 
-  if (G_BTN1.releasedFor(5000) && G_BTN2.releasedFor(5000) && G_SAVE_REQUIRED)
+  if (G_BTN1.releasedFor(4000) && G_BTN2.releasedFor(4000) && G_SAVE_REQUIRED)
   {
     G_SAVE_REQUIRED = false;
     SaveParametersToEEPROM();
@@ -245,6 +232,54 @@ void ButtonFeedback()
       ReadButtons();
     }
   }
+}
+
+void WakeUp()
+{
+}
+
+void WakeUpEffect()
+{
+  Clean();
+  for (uint8_t i = 0; i < NUM_LEDS / 2; ++i)
+  {
+    G_LEDS[i] = G_LEDS[NUM_LEDS - i - 1] = CRGB::WhiteSmoke;
+    blur1d(G_LEDS, NUM_LEDS, 3);
+    FastLED.show();
+    delay(15);
+  }
+}
+
+void SleepDownEffect()
+{
+  fill_solid(G_LEDS, NUM_LEDS, CRGB::WhiteSmoke);
+  FastLED.show();
+  constexpr uint8_t half_of_pixels = NUM_LEDS / 2;
+  for (uint8_t i = 0; i < half_of_pixels; ++i)
+  {
+    G_LEDS[half_of_pixels - 1 - i] = G_LEDS[half_of_pixels + i] = CRGB::Black;
+    blur1d(G_LEDS, NUM_LEDS, 3);
+    FastLED.show();
+    delay(15);
+  }
+}
+
+void Sleep()
+{
+  SleepDownEffect();
+
+  delay(500);
+  static auto pin1 = digitalPinToInterrupt(BUTTON_1);
+  attachInterrupt(pin1, WakeUp, RISING);
+  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+  detachInterrupt(pin1);
+  delay(500);
+
+  G_BTN1.read();
+  G_BTN2.read();
+  FastLED.setBrightness(G_BRIGHTNESS);
+  G_STATE_CHANCHED = true;
+  WakeUpEffect();
 }
 
 // Efects functions
@@ -344,9 +379,9 @@ void WarmWhite()
 {
   if (!G_STATE_CHANCHED)
     return;
+  G_STATE_CHANCHED = false;
   const CRGB warm_white(252, 113, 25);
   fill_solid(G_LEDS, NUM_LEDS, warm_white);
-  G_STATE_CHANCHED = false;
 }
 
 // big complecated effect I have just copied from examples
@@ -366,7 +401,7 @@ void Ocean()
   // change once when switch to it
   if (G_STATE_CHANCHED)
   {
-    G_BRIGHTNESS = SuturationSubtruct(G_BRIGHTNESS, 1, 50);
+    G_BRIGHTNESS = SuturationSubtruct(G_BRIGHTNESS, 1, 70);
     FastLED.setBrightness(G_BRIGHTNESS);
     G_STATE_CHANCHED = false;
   }
