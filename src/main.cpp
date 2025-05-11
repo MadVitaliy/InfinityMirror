@@ -8,7 +8,7 @@
 #define BUTTON_2 3
 
 #define LED_PIN 5
-#define NUM_LEDS 126
+#define NUM_LEDS 124
 #define LONG_PRESS_TIME 700 // ms
 
 #define NUMBER_OF_EFFECTS 6
@@ -59,15 +59,15 @@ void (*G_EFFECTS[NUMBER_OF_EFFECTS])() = {
     &ColdWhite,
     &WarmWhite};
 
-uint8_t G_CURRENT_EFFECT_IND = 0;
+volatile uint8_t G_CURRENT_EFFECT_IND = 0;
 void (*GP_CURRENT_EFFECT)();
-bool G_STATE_CHANCHED = true;
-uint8_t G_BRIGHTNESS = 255;
-bool G_SAVE_REQUIRED = false;
+volatile bool G_STATE_CHANCHED = true;
+volatile uint8_t G_BRIGHTNESS = 255;
+volatile bool G_SAVE_REQUIRED = false;
 
 void setup()
 {
-  delay(1000);
+  delay(100);
   G_BTN1.begin();
   G_BTN2.begin();
   FastLED.addLeds<WS2812, LED_PIN, GRB>(G_LEDS, NUM_LEDS);
@@ -76,7 +76,7 @@ void setup()
   InitParametersFromEEPROM();
   // GP_CURRENT_EFFECT = &EasterGame;
   FastLED.setBrightness(G_BRIGHTNESS);
-  delay(1000);
+  delay(100);
 }
 
 void InitParametersFromEEPROM()
@@ -121,15 +121,14 @@ uint8_t SuturationSubtruct(uint8_t i, uint8_t j, uint8_t min_value = 0)
   return t;
 }
 
-
-
 void ReadButtons()
 {
-  static auto old_time = millis();
-  auto new_time = millis();
-  constexpr unsigned long update_time{100};
-  if (new_time - old_time < update_time)
-    return;
+  // auto new_time = millis();
+  // static auto old_time = new_time;
+  // constexpr unsigned long update_time{100};
+  // if (new_time - old_time < update_time)
+  //   return;
+  // old_time = new_time;
 
   G_BTN1.read();
   G_BTN2.read();
@@ -138,6 +137,7 @@ void ReadButtons()
   {
     G_BTN1_S = LastButtonStatus::SLEEP_PRESS;
     Sleep();
+    InitParametersFromEEPROM();
     return;
   }
   else if (G_BTN1.pressedFor(uint32_t(LONG_PRESS_TIME)))
@@ -252,8 +252,8 @@ void WakeUpEffect()
 
 void SleepDownEffect()
 {
-  fill_solid(G_LEDS, NUM_LEDS, CRGB::WhiteSmoke);
-  FastLED.show();
+  //fill_solid(G_LEDS, NUM_LEDS, CRGB::WhiteSmoke);
+  // FastLED.show();
   constexpr uint8_t half_of_pixels = NUM_LEDS / 2;
   for (uint8_t i = 0; i < half_of_pixels; ++i)
   {
@@ -275,11 +275,13 @@ void Sleep()
   detachInterrupt(pin1);
   delay(500);
 
-  G_BTN1.read();
-  G_BTN2.read();
+  InitParametersFromEEPROM();
   FastLED.setBrightness(G_BRIGHTNESS);
+  G_BTN1_S = LastButtonStatus::LONG_PRESS;
   G_STATE_CHANCHED = true;
   WakeUpEffect();
+  G_BTN1.begin();
+  G_BTN2.begin();
 }
 
 // Efects functions
@@ -572,7 +574,6 @@ void ShowScore(const float i_score)
   CRGB current_collor = colors[0];
 
   uint16_t del = 50;
-  Clean();
   delay(1000);
 
   for (uint8_t l = 0; l < loops; l++)
@@ -610,15 +611,18 @@ void EasterGame()
   Pair platform = DefinePlatformPosition(TrainLength(train));
   int8_t direction = 1;
   constexpr float train_speed = 6; // leds per second
-  float speed_scale = 1;
-  float speed_increase = 0.6;
+  float speed_scale = 1.f;
+  float speed_increase = 0.6f;
   uint16_t frame_time = 1000 / train_speed;
-  float score = 0;
+  float score = 0.f;
+  constexpr uint16_t button_downtime = 800;
 
   static auto old_time = millis();
+  static auto last_button_pres_time = old_time;
   while (!game_over)
   {
-    auto new_time = millis();
+
+    const auto new_time = millis();
     if (new_time - old_time > frame_time)
     {
       old_time = new_time;
@@ -661,7 +665,8 @@ void EasterGame()
     }
 
     G_BTN1.read();
-    if (G_BTN1.wasPressed())
+
+    if (G_BTN1.wasPressed() && new_time - last_button_pres_time > button_downtime)
     {
       was_user_input = true;
       if (IsTrainOnPlatform(train, platform))
@@ -686,9 +691,16 @@ void EasterGame()
         BlinkLostPixels(train, platform);
         game_over = true;
       }
+      last_button_pres_time = millis();
     }
   }
-  ShowScore(score);
-  delay(2000);
+  Clean();
+  if (score > 0.)
+  {
+    ShowScore(score);
+    delay(2000);
+  }
   GP_CURRENT_EFFECT = G_EFFECTS[G_CURRENT_EFFECT_IND];
+  G_BTN1.begin();
+  G_BTN2.begin();
 }
